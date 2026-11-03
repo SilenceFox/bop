@@ -19,14 +19,32 @@
                (cons (car bookmark) filename))))
          bookmarks))
 
-(defun bop--format-entries (entries)
-  "Return ENTRIES as a numbered bookmark listing."
-  (mapconcat #'identity
-             (-map-indexed
-              (lambda (index entry)
-                (format "%2d  %s → %s\n" (1+ index) (car entry) (cdr entry)))
-              entries)
-             ""))
+(defun bop--style (text face styled)
+  "Return TEXT with FACE when STYLED is non-nil."
+  (if styled (propertize text 'face face) text))
+
+(defun bop--format-entries (entries &optional styled)
+  "Return ENTRIES as an aligned listing, with faces when STYLED is non-nil."
+  (let ((name-width (-reduce-from #'max 0 (-map (lambda (entry)
+                                                (string-width (car entry)))
+                                              entries)))
+        (number-format (format "%%%dd" (max 2 (length (number-to-string
+                                                     (length entries)))))))
+    (mapconcat
+     #'identity
+     (-map-indexed
+      (lambda (index entry)
+        (concat
+         (bop--style (format number-format (1+ index))
+                     '(bold font-lock-constant-face) styled)
+         "  "
+         (bop--style (car entry) 'font-lock-function-name-face styled)
+         (make-string (- name-width (string-width (car entry))) ?\s)
+         "  "
+         (bop--style (concat "→  " (cdr entry)) 'shadow styled)
+         "\n"))
+      entries)
+     "")))
 
 (defun bop--find-entry (query entries)
   "Find QUERY in ENTRIES by one-based number or literal name substring."
@@ -72,7 +90,7 @@ Use fzf unless the environment variable BOP_USE_FZF is set to 0."
       (user-error "bop: BOP_USE_FZF must be 0 or 1"))
     (let ((entries (bop--entries (bop--read-bookmarks file))))
       (if (or (null query) (member query '("-h" "--help")))
-          (bop--format-entries entries)
+          (bop--format-entries entries (not (getenv "NO_COLOR")))
         (let ((entry
                 (cond
                  ((string-match-p "\\`[0-9]+\\'" query)

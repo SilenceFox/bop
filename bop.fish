@@ -29,8 +29,33 @@ function bop --description 'Quickly use Emacs bookmarks in terminal sessions'
     or return 1
 
     if test (count $argv) -eq 0; or contains -- "$argv[1]" -h --help
+        set -l name_width 0
+        set -l number_width (string length -- (count $entries))
+        test $number_width -ge 2; or set number_width 2
+        for entry in $entries
+            set -l name (string split -m1 \t -- "$entry")[1]
+            set -l width (string length --visible -- "$name")
+            test $width -le $name_width; or set name_width $width
+        end
+
+        set -l number_color ''
+        set -l name_color ''
+        set -l muted_color ''
+        set -l reset ''
+        if isatty stdout; and not set -q NO_COLOR; and test "$TERM" != dumb
+            set number_color (set_color --bold cyan)
+            set name_color (set_color green)
+            set muted_color (set_color brblack)
+            set reset (set_color normal)
+        end
+
         for i in (seq (count $entries))
-            printf '%2d  %s\n' $i (string replace \t ' → ' -- $entries[$i])
+            set -l parts (string split -m1 \t -- "$entries[$i]")
+            set -l padding (string repeat -n (math $name_width - (string length --visible -- "$parts[1]")) ' ')
+            printf '%s%*d%s  %s%s%s%s  %s→  %s%s\n' \
+                "$number_color" $number_width $i "$reset" \
+                "$name_color" "$parts[1]" "$padding" "$reset" \
+                "$muted_color" "$parts[2]" "$reset"
         end
         return
     end
